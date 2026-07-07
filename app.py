@@ -10,14 +10,18 @@ Flow:
    and keyword-level metrics (search volume, CPC, competition, difficulty,
    monthly trend).
 3. Gemini turns that raw data into NLP keyword ideas and fan-out query ideas,
-   each scored 0-100 for relevance, and also scores the People Also Ask
-   questions for relevance.
+   each scored 0-100 for relevance, and also scores + answers the People Also
+   Ask questions (used for both the keyword-ideas grid and the AEO section).
 4. Real DataForSEO search volume is shown only for the primary keyword and
    secondary (related) keywords. NLP keywords, fan-out queries, and People
    Also Ask show Gemini's relevance score instead.
-5. Everything is displayed in a light, Ahrefs-style keyword-overview layout:
+5. An "Answer Engine Optimization" (AEO) section shows a format-matched
+   answer snippet for the seed keyword (paragraph / steps / table, whichever
+   an AI answer engine would actually extract) with an extraction-readiness
+   score, plus a concise answer for every People Also Ask question.
+6. Everything is displayed in a light, Ahrefs-style keyword-overview layout:
    a keyword-difficulty gauge, search volume with trend, a 2x2 keyword-ideas
-   grid, and the top 10 organic results.
+   grid, the AEO section, and the top 10 organic results.
 
 No export, no database, no login. Run with: streamlit run app.py
 """
@@ -66,7 +70,7 @@ LANGUAGES = {
     "Arabic": "ar",
 }
 
-st.set_page_config(page_title="SEO Keyword Research Tool", page_icon="\U0001F4C8", layout="wide")
+st.set_page_config(page_title="SEO Keyword Research - Ubrik Internal", page_icon="\U0001F4C8", layout="wide")
 
 CUSTOM_CSS = """<style>
 #MainMenu, footer, header[data-testid="stHeader"], [data-testid="stToolbar"] { visibility: hidden; height: 0; }
@@ -131,7 +135,35 @@ div[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 10px !important
 .result-display-url { color: #16a34a; font-size: 12px; margin-top: 3px; word-break: break-all; }
 .result-desc { color: #6b7280; font-size: 12.5px; margin-top: 5px; line-height: 1.45; }
 
+.aeo-intent-chip { background: #eef2ff; color: #4338ca; font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+.wc-badge { font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.wc-good { background: rgba(22,163,74,0.12); color: #16a34a; }
+.wc-warn { background: rgba(245,158,11,0.16); color: #b45309; }
+.aeo-score-label { font-size: 10.5px; color: #9ca3af; margin-left: 6px; }
+
+.aeo-snippet-box { background: #f8fafc; border: 1px solid #eef0f4; border-radius: 8px; padding: 14px 16px; font-size: 13.5px; color: #1f2937; line-height: 1.55; }
+.aeo-snippet-steps { margin: 0; padding-left: 18px; }
+.aeo-snippet-steps li { margin-bottom: 6px; }
+.aeo-snippet-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: -2px 0; }
+.aeo-snippet-table th { text-align: left; background: #eef2ff; color: #334155; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.02em; padding: 8px 10px; }
+.aeo-snippet-table td { padding: 8px 10px; border-top: 1px solid #e5e7eb; color: #1f2937; vertical-align: top; }
+
+.aeo-score-reasons { list-style: none; padding: 0; margin: 10px 0 0 0; }
+.aeo-score-reasons li { font-size: 12px; color: #6b7280; padding: 3px 0 3px 14px; position: relative; }
+.aeo-score-reasons li:before { content: "\\2023"; color: #9ca3af; position: absolute; left: 0; }
+
+.faq-item { padding: 12px 2px; border-bottom: 1px solid #f0f1f4; }
+.faq-item:last-child { border-bottom: none; }
+.faq-q { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-weight: 700; color: #111827; font-size: 13.5px; margin-bottom: 5px; }
+.faq-a { color: #4b5563; font-size: 12.5px; line-height: 1.5; }
+.faq-a-empty { color: #c1c5cc; font-size: 12.5px; font-style: italic; }
+
 .footer-note { text-align: center; color: #9ca3af; font-size: 12px; margin-top: 1.5rem; }
+
+.group-title { font-size: 19px; font-weight: 900; color: #111827; letter-spacing: 0.01em; margin: 4px 0 2px 0; }
+.group-sub { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.04em; margin-left: 10px; }
+.group-divider { border: none; border-top: 3px solid #14213d; border-radius: 3px; margin: 30px 0 22px 0; }
+.aeo-note { background: #eef2ff; border-left: 4px solid #4338ca; color: #3730a3; font-size: 12.5px; line-height: 1.5; padding: 10px 14px; border-radius: 6px; margin: 6px 0 18px 0; }
 </style>"""
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
@@ -270,11 +302,60 @@ def render_relevance_list(items, text_key):
     return "".join(rows)
 
 
+def snippet_metric(snippet: dict):
+    """Returns (label, is_in_ideal_range) describing the snippet's length,
+    measured in the unit that matters for its format (words for a paragraph,
+    steps for a step list, rows for a comparison table)."""
+    fmt = snippet.get("format")
+    if fmt == "steps":
+        n = len(snippet.get("steps") or [])
+        label = f"{n} step{'s' if n != 1 else ''}"
+        good = 3 <= n <= 8
+    elif fmt == "table":
+        n = len(snippet.get("table_rows") or [])
+        label = f"{n} row{'s' if n != 1 else ''}"
+        good = 2 <= n <= 5
+    else:
+        n = snippet.get("word_count") or 0
+        label = f"{n} words"
+        good = 35 <= n <= 70
+    return label, good
+
+
+def render_snippet_body(snippet: dict) -> str:
+    fmt = snippet.get("format")
+    if fmt == "steps" and snippet.get("steps"):
+        items = "".join(f"<li>{esc(s)}</li>" for s in snippet["steps"])
+        return f'<div class="aeo-snippet-box"><ol class="aeo-snippet-steps">{items}</ol></div>'
+    if fmt == "table" and snippet.get("table_headers") and snippet.get("table_rows"):
+        head = "".join(f"<th>{esc(h)}</th>" for h in snippet["table_headers"])
+        body_rows = "".join(
+            "<tr>" + "".join(f"<td>{esc(c)}</td>" for c in row) + "</tr>"
+            for row in snippet["table_rows"]
+        )
+        return (
+            '<div class="aeo-snippet-box">'
+            f'<table class="aeo-snippet-table"><thead><tr>{head}</tr></thead>'
+            f'<tbody>{body_rows}</tbody></table></div>'
+        )
+    paragraph = snippet.get("paragraph")
+    if paragraph:
+        return f'<div class="aeo-snippet-box">{esc(paragraph)}</div>'
+    return '<div class="aeo-snippet-box" style="color:#9ca3af;">No answer snippet returned.</div>'
+
+
+def render_score_reasons(reasons) -> str:
+    if not reasons:
+        return ""
+    items = "".join(f"<li>{esc(r)}</li>" for r in reasons)
+    return f'<ul class="aeo-score-reasons">{items}</ul>'
+
+
 # ---------------- Top bar ----------------
 st.markdown(
     '<div class="topbar"><div class="topbar-left">'
     '<span style="font-size:22px;">\U0001F4C8</span>'
-    '<div><div class="topbar-title">SEO Keyword Research</div>'
+    '<div><div class="topbar-title">SEO Keyword Research - Ubrik Internal</div>'
     '<div class="topbar-sub">Powered by DataForSEO + Gemini</div></div>'
     '</div></div>',
     unsafe_allow_html=True,
@@ -329,14 +410,17 @@ with st.spinner("Generating keyword insights with Gemini..."):
 nlp_keywords = insights.get("nlp_keywords", [])
 fan_out_queries = insights.get("fan_out_queries", [])
 paa_relevance = insights.get("paa_relevance", [])
+answer_snippet = insights.get("answer_snippet", {}) or {}
 
-# Align PAA relevance scores with the PAA list by position (Gemini is asked
-# to preserve order/count; if it didn't, fall back to no score rather than
-# risk pairing a score with the wrong question).
+# Align PAA relevance + AEO answers with the PAA list by position (Gemini is
+# asked to preserve order/count; if it didn't, fall back to no score/answer
+# rather than risk pairing data with the wrong question).
 if len(paa_relevance) == len(paa):
-    paa_scores = [entry.get("relevance") for entry in paa_relevance]
+    paa_details = paa_relevance
 else:
-    paa_scores = [None] * len(paa)
+    paa_details = [{"question": q, "relevance": None, "answer": None} for q in paa]
+
+paa_scores = [d.get("relevance") for d in paa_details]
 
 # Search volume is only shown for the primary keyword and secondary
 # (related) keywords - NLP keywords, fan-out queries, and PAA use Gemini's
@@ -418,7 +502,11 @@ with st.container(border=True):
 
 st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
-# ---------------- Row 3: Keyword ideas grid (2x2) ----------------
+# ---------------- Row 3: SEO group - Keyword ideas grid (2x2) ----------------
+st.markdown(
+    '<div class="group-title">SEO<span class="group-sub">Search Engine Optimization</span></div>',
+    unsafe_allow_html=True,
+)
 st.markdown('<div class="section-title">Keyword Ideas</div>', unsafe_allow_html=True)
 
 ideas_row1 = st.columns(2)
@@ -503,6 +591,68 @@ with st.container(border=True):
         st.markdown("".join(cards), unsafe_allow_html=True)
     else:
         st.caption("No organic results found for this query.")
+
+# ---------------- Row 3.5: AEO group - Answer Engine Optimization ----------------
+st.markdown('<hr class="group-divider" />', unsafe_allow_html=True)
+st.markdown(
+    '<div class="group-title">AEO<span class="group-sub">Answer Engine Optimization</span></div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    '<div class="aeo-note">For your reference: these are Gemini\'s best estimate of how an '
+    'AI answer engine (AI Overviews, ChatGPT, Perplexity, voice assistants) might summarize or '
+    'cite this topic. Use them to guide how you phrase content and FAQs - not as a guarantee of '
+    'placement in any specific answer engine.</div>',
+    unsafe_allow_html=True,
+)
+
+aeo_col1, aeo_col2 = st.columns([3, 2])
+
+with aeo_col1:
+    with st.container(border=True):
+        st.markdown('<div class="section-title">Answer Snippet Lab</div>', unsafe_allow_html=True)
+        length_label, length_ok = snippet_metric(answer_snippet)
+        length_cls = "wc-good" if length_ok else "wc-warn"
+        header_html = (
+            '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">'
+            '<div style="display:flex;align-items:center;gap:8px;">'
+            f'<span class="aeo-intent-chip">{esc(answer_snippet.get("intent_type") or "Unknown")}</span>'
+            f'<span class="wc-badge {length_cls}">{esc(length_label)}</span>'
+            '</div>'
+            f'<div>{relevance_chip(answer_snippet.get("extraction_score"))}'
+            '<span class="aeo-score-label">extraction score</span></div>'
+            '</div>'
+        )
+        st.markdown(header_html, unsafe_allow_html=True)
+        st.markdown(render_snippet_body(answer_snippet), unsafe_allow_html=True)
+        reasons_html = render_score_reasons(answer_snippet.get("score_reasons"))
+        if reasons_html:
+            st.markdown(reasons_html, unsafe_allow_html=True)
+
+with aeo_col2:
+    with st.container(border=True):
+        st.markdown('<div class="section-title">FAQ Answers</div>', unsafe_allow_html=True)
+        if paa:
+            rows = []
+            for detail in paa_details:
+                question = detail.get("question", "")
+                answer = detail.get("answer")
+                answer_html = (
+                    f'<div class="faq-a">{esc(answer)}</div>'
+                    if answer
+                    else '<div class="faq-a-empty">No answer generated.</div>'
+                )
+                rows.append(
+                    '<div class="faq-item">'
+                    f'<div class="faq-q"><span>{esc(question)}</span>{relevance_chip(detail.get("relevance"))}</div>'
+                    f'{answer_html}'
+                    '</div>'
+                )
+            st.markdown("".join(rows), unsafe_allow_html=True)
+        else:
+            st.caption("No People Also Ask questions found.")
+
+st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
 st.markdown(
     '<div class="footer-note">Built with Streamlit &middot; Data provided by DataForSEO &middot; Insights by Gemini</div>',
