@@ -502,17 +502,16 @@ with st.container(border=True):
 
 st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
-# ---------------- Row 3: SEO group - Keyword ideas grid (2x2) ----------------
+# ---------------- Row 3: SEO group - Keyword ideas ----------------
 st.markdown(
     '<div class="group-title">SEO<span class="group-sub">Search Engine Optimization</span></div>',
     unsafe_allow_html=True,
 )
 st.markdown('<div class="section-title">Keyword Ideas</div>', unsafe_allow_html=True)
 
-ideas_row1 = st.columns(2)
-ideas_row2 = st.columns(2)
+seo_ideas_row = st.columns(2)
 
-with ideas_row1[0]:
+with seo_ideas_row[0]:
     with st.container(border=True):
         st.markdown('<div class="section-title">Secondary Keywords</div>', unsafe_allow_html=True)
         if secondary_keywords:
@@ -529,27 +528,7 @@ with ideas_row1[0]:
         else:
             st.caption("No secondary keywords found.")
 
-with ideas_row1[1]:
-    with st.container(border=True):
-        st.markdown('<div class="section-title">NLP / Semantic Keywords</div>', unsafe_allow_html=True)
-        if nlp_keywords:
-            st.markdown(idea_header_row("Relevance"), unsafe_allow_html=True)
-            st.markdown(render_relevance_list(nlp_keywords, "keyword"), unsafe_allow_html=True)
-        else:
-            st.caption("No NLP keywords returned.")
-
-st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
-
-with ideas_row2[0]:
-    with st.container(border=True):
-        st.markdown('<div class="section-title">Fan-out Queries</div>', unsafe_allow_html=True)
-        if fan_out_queries:
-            st.markdown(idea_header_row("Relevance"), unsafe_allow_html=True)
-            st.markdown(render_relevance_list(fan_out_queries, "query"), unsafe_allow_html=True)
-        else:
-            st.caption("No fan-out queries returned.")
-
-with ideas_row2[1]:
+with seo_ideas_row[1]:
     with st.container(border=True):
         st.markdown('<div class="section-title">People Also Ask</div>', unsafe_allow_html=True)
         if paa:
@@ -605,6 +584,30 @@ st.markdown(
     'placement in any specific answer engine.</div>',
     unsafe_allow_html=True,
 )
+
+st.markdown('<div class="section-title">Semantic &amp; Fan-out Ideas</div>', unsafe_allow_html=True)
+
+aeo_ideas_row = st.columns(2)
+
+with aeo_ideas_row[0]:
+    with st.container(border=True):
+        st.markdown('<div class="section-title">NLP / Semantic Keywords</div>', unsafe_allow_html=True)
+        if nlp_keywords:
+            st.markdown(idea_header_row("Relevance"), unsafe_allow_html=True)
+            st.markdown(render_relevance_list(nlp_keywords, "keyword"), unsafe_allow_html=True)
+        else:
+            st.caption("No NLP keywords returned.")
+
+with aeo_ideas_row[1]:
+    with st.container(border=True):
+        st.markdown('<div class="section-title">Fan-out Queries</div>', unsafe_allow_html=True)
+        if fan_out_queries:
+            st.markdown(idea_header_row("Relevance"), unsafe_allow_html=True)
+            st.markdown(render_relevance_list(fan_out_queries, "query"), unsafe_allow_html=True)
+        else:
+            st.caption("No fan-out queries returned.")
+
+st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
 
 aeo_col1, aeo_col2 = st.columns([3, 2])
 
