@@ -9,9 +9,9 @@ language in the top search bar, and get:
   (DataForSEO Labs)
 - A 2x2 "Keyword Ideas" grid: Secondary (related) Keywords with search
   volume, NLP/Semantic Keywords, Fan-out Queries, and People Also Ask — the
-  last three scored 0-100 for relevance by Gemini
+  last three scored 0-100 for relevance by DeepSeek
 - An **Answer Engine Optimization (AEO)** section:
-  - **Answer Snippet Lab** — Gemini classifies the seed keyword's search
+  - **Answer Snippet Lab** — DeepSeek classifies the seed keyword's search
     intent (Definition / Comparison / Process / List / Yes-No) and writes an
     answer in the format an AI answer engine or featured snippet would
     actually extract (a 40-60 word paragraph, an ordered step list, or a
@@ -45,8 +45,8 @@ No export, no database, no login.
    ```
 
    - `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` — from your DataForSEO account
-   - `GEMINI_API_KEY` — from Google AI Studio
-   - `GEMINI_MODEL` — optional, defaults to `gemini-2.5-flash`
+   - `DEEPSEEK_API_KEY` — from the DeepSeek Platform (platform.deepseek.com)
+   - `DEEPSEEK_MODEL` — optional, defaults to `deepseek-v4-flash`
 
    The `.env` file is git-ignored and credentials are never hardcoded in the code.
 
@@ -65,7 +65,7 @@ keyword in the top search bar and click **Search**.
 - `dataforseo_client.py` — DataForSEO API calls:
   - SERP (organic results, People Also Ask, related searches)
   - Labs Keyword Overview (search volume, CPC, competition, difficulty, monthly trend)
-- `gemini_client.py` — Gemini API calls: NLP keywords, fan-out queries, PAA
+- `deepseek_client.py` — DeepSeek API calls: NLP keywords, fan-out queries, PAA
   relevance + answers, and the AEO answer snippet (intent, format-matched
   text, extraction score)
 - `requirements.txt` — Python dependencies
@@ -81,7 +81,7 @@ keyword in the top search bar and click **Search**.
 - Only the primary keyword plus the first `MAX_SECONDARY_TO_ENRICH` (default
   12) secondary keywords are looked up for search volume/CPC/trend, to keep
   the extra API call fast and cheap.
-- The AEO answer snippet and FAQ answers are Gemini's best judgment of what
+- The AEO answer snippet and FAQ answers are DeepSeek's best judgment of what
   an AI answer engine would extract/cite — not a guarantee of appearing in
   any specific answer engine, and not sourced from DataForSEO.
 - Each DataForSEO call (SERP + Labs) costs API credits — check your
